@@ -9,144 +9,177 @@ use App\Models\Transaction;
 use App\Models\TransactionDetail;
 use App\Models\PaymentMethod;
 use App\Models\Product;
-use Illuminate\Support\Facades\Log;
+use Carbon\Carbon;
 
 class CheckoutController extends Controller
 {
-    /**
-     * Show checkout detail page.
-     */
-    public function detail()
+    public function detail($id)
     {
         $customer = Auth::guard('customer')->user();
 
         if (!$customer) {
-            return redirect()->route('customer.login.form')->with('error', 'Please log in first.');
+            return redirect()->route('customer.login.form')->with('error', 'Silakan login terlebih dahulu.');
         }
 
-        $cartItems = session('cart', []);
+        if ($id === 'buynow') {
+            $item = session('buynow');
 
-        // Debug: ensure cart is not empty
-        if (empty($cartItems)) {
-            return redirect()->route('customer.home')->with('warning', 'Your cart is currently empty.');
-        }
+            if (
+                !$item ||
+                !isset($item['id'], $item['quantity'])
+            ) {
+                return redirect()->route('customer.cart')->with('warning', 'Data Buy Now tidak valid.');
+            }
 
-        // Prepare and complete cart data
-        $cartItems = collect($cartItems)->map(function ($item) {
             $product = Product::find($item['id']);
-            return [
-                'id'       => $item['id'],
-                'name'     => $item['name'],
-                'price'    => $item['price'],
-                'quantity' => $item['quantity'],
-                'image'    => $product?->picture ?? null,
+
+            if (!$product) {
+                return redirect()->route('customer.cart')->with('warning', 'Produk tidak ditemukan.');
+            }
+
+            $itemName = $product->name;
+            $itemPrice = $product->price;
+
+            $transaction = (object)[
+                'id'                => 'preview-buynow',
+                'transaction_number'=> 'PREVIEW-BUYNOW',
+                'total'             => $itemPrice * $item['quantity'],
+                'ppn'               => $itemPrice * $item['quantity'] * 0.11,
+                'grand_total'       => $itemPrice * $item['quantity'] * 1.11,
+                'created_at'        => Carbon::now(),
+                'details'           => collect([
+                    (object)[
+                        'product'   => (object)['name' => $itemName],
+                        'item_name' => $itemName,
+                        'quantity'  => $item['quantity'],
+                        'price'     => $itemPrice,
+                        'subtotal'  => $itemPrice * $item['quantity'],
+                    ]
+                ]),
             ];
+
+            return view('customer.checkout.detail', compact('transaction', 'customer'));
+        }
+
+        $transaction = Transaction::with('details')
+            ->where('id', $id)
+            ->where('customer_id', $customer->id)
+            ->first();
+
+        if (!$transaction) {
+            return redirect()->route('customer.cart')->with('warning', 'Transaksi tidak ditemukan.');
+        }
+
+        return view('customer.checkout.detail', compact('transaction', 'customer'));
+    }
+
+    public function store(Request $request)
+    {
+        $customer = Auth::guard('customer')->user();
+
+        if (!$customer) {
+            return redirect()->route('customer.login.form')->with('error', 'Silakan login terlebih dahulu.');
+        }
+
+        $buyNowItem = session('buynow');
+
+        // Validasi item buy now atau cart
+        $cartItems = $buyNowItem ? collect([$buyNowItem]) : collect(session('cart', []));
+
+        $cartItems = $cartItems->filter(function ($item) {
+            return isset($item['id'], $item['name'], $item['price'], $item['quantity']);
         });
+
+        if ($cartItems->isEmpty()) {
+            return redirect()->route('customer.cart')->with('warning', 'Keranjang kosong atau data produk tidak lengkap.');
+        }
+
+        $existing = Transaction::where('customer_id', $customer->id)
+            ->where('status', 'pending')
+            ->latest()
+            ->first();
+
+        if ($existing) {
+            $existing->details()->delete();
+            $existing->delete();
+        }
 
         $total = $cartItems->sum(fn($item) => $item['price'] * $item['quantity']);
         $ppn = $total * 0.11;
         $grandTotal = $total + $ppn;
 
-        // Check for existing pending transaction
-        $transaction = Transaction::where('customer_id', $customer->id)
-            ->where('status', 'pending')
-            ->latest()
-            ->first();
-
-        if (!$transaction) {
-            $transaction = Transaction::create([
-                'customer_id'        => $customer->id,
-                'transaction_number' => 'TRX-' . strtoupper(uniqid()),
-                'total'              => $total,
-                'ppn'                => $ppn,
-                'grand_total'        => $grandTotal,
-                'status'             => 'pending',
-            ]);
-        } else {
-            $transaction->update([
-                'total'       => $total,
-                'ppn'         => $ppn,
-                'grand_total' => $grandTotal,
-            ]);
-        }
-
-        // Remove old transaction details and store new ones
-        $transaction->details()->delete();
+        $transaction = Transaction::create([
+            'customer_id'        => $customer->id,
+            'transaction_number' => 'TRX-' . strtoupper(uniqid()),
+            'total'              => $total,
+            'ppn'                => $ppn,
+            'grand_total'        => $grandTotal,
+            'status'             => 'pending',
+        ]);
 
         foreach ($cartItems as $item) {
-            try {
-                TransactionDetail::create([
-                    'transaction_id' => $transaction->id,
-                    'product_id'     => $item['id'],
-                    'item_name'      => $item['name'],
-                    'quantity'       => $item['quantity'],
-                    'price'          => $item['price'],
-                    'subtotal'       => $item['price'] * $item['quantity'],
-                ]);
-            } catch (\Exception $e) {
-                Log::error("Failed to save transaction detail: " . $e->getMessage());
-            }
+            TransactionDetail::create([
+                'transaction_id' => $transaction->id,
+                'product_id'     => $item['id'],
+                'item_name'      => $item['name'],
+                'quantity'       => $item['quantity'],
+                'price'          => $item['price'],
+                'subtotal'       => $item['price'] * $item['quantity'],
+            ]);
         }
 
-        return view('customer.checkout.detail', compact(
-            'cartItems', 'total', 'ppn', 'grandTotal', 'customer', 'transaction'
-        ));
+        session()->forget('cart');
+        session()->forget('buynow');
+
+        return redirect()
+            ->route('customer.checkout.detail', $transaction->id)
+            ->with('success', 'Checkout successful. Please proceed to the payment confirmation.');
     }
 
-    /**
-     * Show payment confirmation page.
-     */
-    public function confirm()
+    public function confirm($id)
     {
         $customer = Auth::guard('customer')->user();
 
         if (!$customer) {
-            return redirect()->route('customer.login.form')->with('error', 'Please log in first.');
+            return redirect()->route('customer.login.form')->with('error', 'Silakan login terlebih dahulu.');
         }
 
-        $transaction = Transaction::with('details.product')
+        $transaction = Transaction::with('details')
+            ->where('id', $id)
             ->where('customer_id', $customer->id)
-            ->where('status', 'pending')
-            ->latest()
             ->first();
 
         if (!$transaction) {
-            return redirect()->route('customer.checkout.detail')->with('warning', 'Please complete the checkout first.');
+            return redirect()->route('customer.cart')->with('warning', 'Transaksi tidak ditemukan.');
         }
 
-        $paymentMethods = PaymentMethod::whereIn('name', ['BNI', 'BCA'])->get();
+        $paymentMethods = PaymentMethod::all();
 
-        return view('customer.checkout.confirm', compact(
-            'customer', 'transaction', 'paymentMethods'
-        ));
+        return view('customer.checkout.confirm', compact('customer', 'transaction', 'paymentMethods'));
     }
 
-    /**
-     * Handle payment confirmation submission.
-     */
     public function submitConfirmation(Request $request)
     {
         $request->validate([
             'name_institution'   => 'required|string|max:255',
             'payment_method_id'  => 'required|exists:payment_methods,id',
             'payment_proof'      => 'required|image|mimes:jpg,jpeg,png|max:5120',
+            'transaction_id'     => 'required|exists:transactions,id',
         ]);
 
         $customer = Auth::guard('customer')->user();
 
-        $transaction = Transaction::where('customer_id', $customer->id)
+        $transaction = Transaction::where('id', $request->transaction_id)
+            ->where('customer_id', $customer->id)
             ->where('status', 'pending')
-            ->latest()
             ->first();
 
         if (!$transaction) {
-            return redirect()->back()->with('error', 'No pending transaction available for confirmation.');
+            return redirect()->back()->with('error', 'Transaksi tidak ditemukan atau sudah dikonfirmasi.');
         }
 
-        // Store payment proof
         $proofPath = $request->file('payment_proof')->store('payment_proofs', 'public');
 
-        // Update transaction
         $transaction->update([
             'name_institution'   => $request->name_institution,
             'payment_method_id'  => $request->payment_method_id,
@@ -154,9 +187,8 @@ class CheckoutController extends Controller
             'status'             => 'waiting_verification',
         ]);
 
-        // Clear cart session
-        session()->forget('cart');
-
-        return redirect()->route('customer.history')->with('success', 'Payment confirmation submitted successfully.');
+        return redirect()
+            ->route('customer.history')
+            ->with('success', 'Konfirmasi pembayaran berhasil dikirim.');
     }
 }

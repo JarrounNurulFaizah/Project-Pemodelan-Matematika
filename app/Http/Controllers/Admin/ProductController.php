@@ -72,7 +72,7 @@ class ProductController extends Controller
 
         $product->update($validated);
 
-        return redirect()->route('admin.products.index')->with('success', 'Produk berhasil diperbarui.');
+        return redirect()->route('admin.products.index')->with('success', 'Product updated successfully.');
     }
 
     // Hapus produk

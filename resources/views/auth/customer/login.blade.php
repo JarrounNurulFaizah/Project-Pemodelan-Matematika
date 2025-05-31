@@ -59,18 +59,19 @@
             background-color: #003b8c;
         }
 
-        .register-link {
-            margin-top: 20px;
+        .link-wrapper {
+            margin-top: 15px;
             font-size: 14px;
         }
 
-        .register-link a {
-            color: purple;
+        .link-wrapper a {
+            color: #6b46c1;
             text-decoration: none;
         }
 
-        .register-link a:hover {
+        .link-wrapper a:hover {
             text-decoration: underline;
+            color: #4c1d95;
         }
 
         .error-message {
@@ -101,8 +102,7 @@
 
             <button type="submit">Sign in</button>
         </form>
-
-        <div class="register-link">
+        <div class="link-wrapper">
             Don't have an account? <a href="{{ route('customer.register.form') }}">Sign up</a>
         </div>
     </div>

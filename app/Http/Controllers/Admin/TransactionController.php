@@ -22,7 +22,7 @@ class TransactionController extends Controller
         $transaction->save();
 
         return redirect()->route('admin.transactions.index')
-                         ->with('success', 'Transaksi berhasil diverifikasi.');
+                         ->with('success', 'Transaction successfully verified.');
     }
 
     public function reject($id)
@@ -32,7 +32,7 @@ class TransactionController extends Controller
         $transaction->save();
 
         return redirect()->route('admin.transactions.index')
-                         ->with('success', 'Transaksi ditolak.');
+                         ->with('success', 'Transaction rejected.');
     }
 
     public function deliveryOrder($id)

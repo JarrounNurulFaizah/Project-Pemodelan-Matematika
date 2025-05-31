@@ -46,10 +46,10 @@ class PaymentController extends Controller
                 'institution_name' => $request->institution_name,
                 'payment_method' => $request->payment_method,
                 'payment_proof' => $path,
-                'status' => 'Menunggu Konfirmasi', // Sesuai alur sistem
+                'status' => 'Pending Confirmation', // Sesuai alur sistem
             ]);
         }
 
-        return redirect()->route('customer.transactions')->with('success', 'Bukti pembayaran berhasil dikirim.');
+        return redirect()->route('customer.transactions')->with('success', 'Payment proof submitted successfully.');
     }
 }

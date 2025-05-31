@@ -23,7 +23,7 @@
         font-weight: 600;
     }
 
-    .btn-tambah {
+    .btn-add {
         background-color: #004aad;
         color: white;
         padding: 10px 20px;
@@ -32,7 +32,7 @@
         font-size: 14px;
     }
 
-    .btn-tambah:hover {
+    .btn-add:hover {
         background-color: #003b8c;
     }
 
@@ -81,38 +81,39 @@
         width: 80px;
         height: auto;
         border-radius: 6px;
+        object-fit: cover;
     }
 </style>
 
 <div class="container">
     <div class="header-section">
         <h2>Product List</h2>
-        <a href="{{ route('admin.products.create') }}" class="btn-tambah">+ Add Products</a>
+        <a href="{{ route('admin.products.create') }}" class="btn-add">+ Add Product</a>
     </div>
 
     @if($products->isEmpty())
-        <div class="no-product">No products yet</div>
+        <div class="no-product">No products available</div>
     @else
-    <table>
-        <thead>
-            <tr>
-                <th>Name</th>
-                <th>Price</th>
-                <th>Picture</th>
-                <th>Detail Product</th>
-                <th>Action</th>
-            </tr>
-        </thead>
-        <tbody>
-            @foreach ($products as $product)
+        <table>
+            <thead>
+                <tr>
+                    <th>Product Name</th>
+                    <th>Price</th>
+                    <th>Image</th>
+                    <th>Description</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach ($products as $product)
                 <tr>
                     <td>{{ $product->name }}</td>
                     <td>Rp {{ number_format($product->price, 0, ',', '.') }}</td>
                     <td>
                         @if ($product->picture)
-                            <img src="{{ asset('storage/' . $product->picture) }}" alt="{{ $product->name }}" class="product-image">
+                            <img src="{{ asset('storage/' . $product->picture) }}" alt="Product Image" class="product-image">
                         @else
-                            No image
+                            <span style="color: #888;">No image</span>
                         @endif
                     </td>
                     <td>{{ $product->description }}</td>
@@ -121,13 +122,13 @@
                         <form action="{{ route('admin.products.destroy', $product->id) }}" method="POST" style="display:inline;">
                             @csrf
                             @method('DELETE')
-                            <button type="submit" onclick="return confirm('Remove this product?')">Delete</button>
+                            <button type="submit" onclick="return confirm('Delete this product?')">Delete</button>
                         </form>
                     </td>
                 </tr>
-            @endforeach
-        </tbody>
-    </table>
+                @endforeach
+            </tbody>
+        </table>
     @endif
 </div>
 @endsection

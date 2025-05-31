@@ -25,6 +25,6 @@ class AdminController extends Controller
             'password' => Hash::make($request->password),
         ]);
 
-        return redirect()->route('admin.login')->with('success', 'Registrasi berhasil. Silakan login.');
+        return redirect()->route('admin.login')->with('success', 'Registration successful. Please log in.');
     }
 }

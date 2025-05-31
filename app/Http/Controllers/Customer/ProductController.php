@@ -4,32 +4,43 @@ namespace App\Http\Controllers\Customer;
 
 use App\Http\Controllers\Controller;
 use App\Models\Product;
+use Illuminate\Http\Request;
+use App\Models\Transaction;
+use Illuminate\Support\Facades\Session;
 
 class ProductController extends Controller
 {
-    /**
-     * Menampilkan daftar semua produk di halaman katalog customer.
-     
-     * @return \Illuminate\View\View
-     */
     public function index()
     {
-        // Mengambil semua produk dari database
         $products = Product::all();
-
-        // Mengirim data produk ke view 'customer.products.index'
         return view('customer.products.index', compact('products'));
     }
 
-    /**
-     * Menampilkan halaman detail dari satu produk.
-     *
-     * @param  \App\Models\Product  $product
-     * @return \Illuminate\View\View
-     */
     public function show(Product $product)
     {
-        // Mengirim data produk ke view 'customer.products.show'
         return view('customer.products.show', compact('product'));
     }
+
+    public function buyNow(Request $request, Product $product)
+{
+    $quantity = max((int) $request->input('quantity', 1), 1);
+
+    $transaction = Transaction::create([
+        'customer_id' => auth('customer')->id(),
+        'transaction_number' => 'TRX' . time(),
+        'total' => $product->price * $quantity,
+        'ppn' => 0,
+        'grand_total' => $product->price * $quantity,
+    ]);
+
+    $transaction->details()->create([
+        'product_id' => $product->id,
+        'item_name' => $product->name,
+        'price' => $product->price,
+        'quantity' => $quantity,
+        'subtotal' => $product->price * $quantity,
+    ]);
+
+    return redirect()->route('customer.checkout.detail', ['id' => $transaction->id]);
+}
 }

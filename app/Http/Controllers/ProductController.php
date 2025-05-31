@@ -30,7 +30,10 @@ class ProductController extends Controller
         $data = $request->all();
 
         if ($request->hasFile('picture')) {
-            $data['picture'] = $request->file('picture')->store('products', 'public');
+            $image = $request->file('picture');
+            $imageName = time() . '.' . $image->getClientOriginalExtension();
+            $image->move(public_path('products'), $imageName); // simpan ke public/products
+            $data['picture'] = $imageName;
         }
 
         Product::create($data);
@@ -55,7 +58,10 @@ class ProductController extends Controller
         $data = $request->all();
 
         if ($request->hasFile('picture')) {
-            $data['picture'] = $request->file('picture')->store('products', 'public');
+            $image = $request->file('picture');
+            $imageName = time() . '.' . $image->getClientOriginalExtension();
+            $image->move(public_path('products'), $imageName); // simpan ke public/products
+            $data['picture'] = $imageName;
         }
 
         $product->update($data);
@@ -65,6 +71,11 @@ class ProductController extends Controller
 
     public function destroy(Product $product)
     {
+        // Hapus file gambar jika ada
+        if ($product->picture && file_exists(public_path('products/' . $product->picture))) {
+            unlink(public_path('products/' . $product->picture));
+        }
+
         $product->delete();
         return redirect()->route('products.index')->with('success', 'Produk berhasil dihapus!');
     }

@@ -40,7 +40,7 @@
 </style>
 
 <div class="form-container">
-    <h2>Edit Produk</h2>
+    <h2>Edit Product</h2>
 
     <form action="{{ route('admin.products.update', $product->id) }}" method="POST" enctype="multipart/form-data">
         @csrf

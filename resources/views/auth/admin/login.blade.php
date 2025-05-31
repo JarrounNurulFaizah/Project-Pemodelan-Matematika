@@ -52,6 +52,19 @@
             font-size: 14px;
             margin-top: 10px;
         }
+        .link-wrapper {
+            margin-top: 15px;
+            font-size: 14px;
+        }
+        .link-wrapper a {
+            color: #6b46c1;
+            text-decoration: none;
+            transition: 0.2s ease-in-out;
+        }
+        .link-wrapper a:hover {
+            text-decoration: underline;
+            color: #4c1d95;
+        }
     </style>
 </head>
 <body>
@@ -82,9 +95,9 @@
             <button type="submit">Sign in</button>
         </form>
 
-        <p style="margin-top: 15px;">
+        <div class="link-wrapper">
             Don't have an account? <a href="{{ route('admin.register.form') }}">Sign Up</a>
-        </p>
+        </div>
     </div>
 </body>
 </html>

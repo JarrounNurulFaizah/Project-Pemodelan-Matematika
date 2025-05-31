@@ -5,12 +5,15 @@ namespace App\Http\Controllers\Customer;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use App\Models\Product;
 use App\Models\Transaction;
 use App\Models\TransactionDetail;
 use Barryvdh\DomPDF\Facade\Pdf;
+use Illuminate\Support\Facades\DB;
 
 class TransactionController extends Controller
 {
+    // Menampilkan daftar transaksi customer
     public function index()
     {
         $customer = Auth::guard('customer')->user();
@@ -22,6 +25,7 @@ class TransactionController extends Controller
         return view('customer.transactions.index', compact('transactions'));
     }
 
+    // Menampilkan history transaksi
     public function history()
     {
         $customer = Auth::guard('customer')->user();
@@ -33,8 +37,14 @@ class TransactionController extends Controller
         return view('customer.transactions.history', compact('transactions'));
     }
 
+    // Store transaksi dari keranjang
     public function store(Request $request)
     {
+        // Jika berasal dari Buy Now (ada product_id), tangani secara terpisah
+        if ($request->has('product_id')) {
+            return $this->storeFromBuyNow($request);
+        }
+
         $validated = $request->validate([
             'name_institution'   => 'required|string|max:255',
             'payment_method'     => 'required|string|max:255',
@@ -70,9 +80,64 @@ class TransactionController extends Controller
 
         session()->forget('cart');
 
-        return redirect()->route('customer.history')->with('success', 'Transaksi berhasil dikirim.');
+        return redirect()->route('customer.history')->with('success', 'Transaction has been sent successfully.');
     }
 
+    // Store transaksi dari Buy Now
+    public function storeFromBuyNow(Request $request)
+    {
+        $request->validate([
+            'product_id' => 'required|exists:products,id',
+            'quantity'   => 'required|integer|min:1',
+        ]);
+
+        $customer = Auth::guard('customer')->user();
+
+        DB::beginTransaction();
+
+        try {
+            $product = Product::findOrFail($request->product_id);
+
+            $transaction = Transaction::create([
+                'customer_id' => $customer->id,
+                'status' => 'Pending',
+                'total_price' => $product->price * $request->quantity,
+            ]);
+
+            TransactionDetail::create([
+                'transaction_id' => $transaction->id,
+                'product_id' => $product->id,
+                'item_name' => $product->name,
+                'quantity' => $request->quantity,
+                'price' => $product->price,
+                'subtotal' => $product->price * $request->quantity,
+            ]);
+
+            DB::commit();
+
+            return redirect()->route('customer.transactions.show', $transaction->id);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return back()->with('error', 'Gagal transaksi: ' . $e->getMessage());
+        }
+    }
+
+    // Tampilkan detail transaksi
+    public function show(Transaction $transaction)
+    {
+        $customer = Auth::guard('customer')->user();
+
+        if ($transaction->customer_id !== $customer->id) {
+            abort(403);
+        }
+
+        $transaction->load('transactionDetails.product');
+
+        return view('customer.transactions.show', compact('transaction'));
+    }
+
+    // Generate dan tampilkan invoice PDF
     public function generateInvoice(Transaction $transaction)
     {
         set_time_limit(180);
@@ -101,6 +166,7 @@ class TransactionController extends Controller
         return $pdf->stream('invoice-' . $transaction->id . '.pdf');
     }
 
+    // Download invoice PDF sebagai file
     public function downloadInvoice($id)
     {
         $customer = Auth::guard('customer')->user();
@@ -127,6 +193,6 @@ class TransactionController extends Controller
             'title'       => $title,
         ]);
 
-        return $pdf->download('invoice_' . $transaction->transaction_number . '.pdf');
+        return $pdf->download('invoice_' . $transaction->id . '.pdf');
     }
 }
